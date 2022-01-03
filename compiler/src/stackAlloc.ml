@@ -86,7 +86,7 @@ let pp_oracle tbl up fmt saos =
     (pp_list "@;" (pp_slot tbl)) ao_global_alloc
     (pp_list "@;" pp_stack_alloc) fs
 
-let memory_analysis pp_err ~debug tbl is_move_op up =
+let memory_analysis pp_err ~debug pp_opn is_move_op dead_code_fd tbl up =
   if debug then Format.eprintf "START memory analysis@.";
   let p = Conv.prog_of_cuprog tbl up in
   let gao, sao = Varalloc.alloc_stack_prog p in
@@ -171,28 +171,28 @@ let memory_analysis pp_err ~debug tbl is_move_op up =
   
   if debug then
     Format.eprintf "After memory analysis@.%a@."
-      (Printer.pp_prog ~debug:true) ([], (List.map snd fds));
+      (Printer.pp_prog ~debug:true pp_opn) ([], (List.map snd fds));
   
   (* remove unused result *)
-  let tokeep = RemoveUnusedResults.analyse fds in
+  let tokeep = RemoveUnusedResults.analyse is_move_op fds in
   let tokeep fn = tokeep (Conv.fun_of_cfun tbl fn) in
   let deadcode (extra, fd) =
     let (fn, cfd) = Conv.cufdef_of_fdef tbl fd in
     let fd = 
-      match Dead_code.dead_code_fd (Arch_extra.asm_opI X86_extra.x86_extra) is_move_op false tokeep fn cfd with
+      match dead_code_fd tokeep fn cfd with
       | Utils0.Ok cfd -> Conv.fdef_of_cufdef tbl (fn, cfd) 
       | Utils0.Error _ -> assert false in 
     (extra,fd) in
   let fds = List.map deadcode fds in
   if debug then
     Format.eprintf "After remove unused return @.%a@."
-      (Printer.pp_prog ~debug:true) ([], (List.map snd fds));
+      (Printer.pp_prog ~debug:true pp_opn) ([], (List.map snd fds));
   
   (* register allocation *)
   let translate_var = Conv.var_of_cvar tbl in
   let has_stack f = f.f_cc = Export && (Hf.find sao f.f_name).sao_modify_rsp in
   let fds, _extra_free_registers =
-    Regalloc.alloc_prog translate_var (fun fd _ -> has_stack fd) fds in
+    Regalloc.alloc_prog pp_opn is_move_op translate_var (fun fd _ -> has_stack fd) fds in
   
   let fix_csao (_, ro, fd) =
     let fn = fd.f_name in

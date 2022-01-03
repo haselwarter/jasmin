@@ -10,9 +10,9 @@ open SafetyPreanalysis
   
 (*---------------------------------------------------------------*)
 module type ProgWrap = sig
-  val main_source : unit Prog.func
-  val main : minfo Prog.func
-  val prog : minfo Prog.prog
+  val main_source : (unit, 'asm) Prog.func
+  val main : (minfo, 'asm) Prog.func
+  val prog : (minfo, 'asm) Prog.prog
   val param : analyzer_param
 end
 

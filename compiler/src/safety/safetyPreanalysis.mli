@@ -4,7 +4,7 @@ type minfo = { i_instr_number : int; }
 
 module MkUniq : sig
   val mk_uniq :
-    unit func -> unit prog -> minfo func * minfo prog
+    (unit, 'asm) func -> (unit, 'asm) prog -> (minfo, 'asm) func * (minfo, 'asm) prog
 end
 
 module Pa : sig
@@ -17,13 +17,13 @@ module Pa : sig
     if_conds : expr list;
   }
   val dp_v : dp -> var -> Sv.t
-  val pa_make : 'info func -> 'info prog option -> pa_res
+  val pa_make : ('info, 'asm) func -> ('info, 'asm) prog option -> pa_res
   val print_dp : Format.formatter -> dp -> unit
   val print_cfg : Format.formatter -> cfg -> unit
 end
 
 module FSPa : sig
-  val fs_pa_make : 'info func -> unit func * Pa.pa_res
+  val fs_pa_make : ('info, 'asm) func -> (unit, 'asm) func * Pa.pa_res
 end
 
 (*---------------------------------------------------------------*)

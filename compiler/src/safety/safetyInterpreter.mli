@@ -1,9 +1,10 @@
 module type ExportWrap = sig
+  type asm
   (* main function, before any compilation pass *)
-  val main_source : unit Prog.func
+  val main_source : (unit, asm) Prog.func
       
-  val main : unit Prog.func
-  val prog : unit Prog.prog
+  val main : (unit, asm) Prog.func
+  val prog : (unit, asm) Prog.prog
 end
 
 (* Abstract Interpreter. *)

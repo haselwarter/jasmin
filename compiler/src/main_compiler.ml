@@ -28,38 +28,38 @@ let parse () =
 let saved_extra_free_registers : (L.i_loc -> var option) ref = ref (fun _ -> None)
 
 (* -------------------------------------------------------------------- *)
-let rec warn_extra_i i = 
+let rec warn_extra_i pp_opn i = 
   match i.i_desc with
   | Cassgn (_, tag, _, _) | Copn (_, tag, _, _) ->
     begin match tag with
     | AT_rename ->
       warning ExtraAssignment i.i_loc
         "@[<v>extra assignment introduced:@;<0 2>%a@]"
-        (Printer.pp_instr ~debug:false) i
+        (Printer.pp_instr ~debug:false pp_opn) i
     | AT_inline ->
       hierror ~loc:(Lmore i.i_loc) ~kind:"compilation error" ~internal:true
         "@[<v>AT_inline flag remains in instruction:@;<0 2>@[%a@]@]"
-        (Printer.pp_instr ~debug:false) i
+        (Printer.pp_instr ~debug:false pp_opn) i
     | _ -> ()
     end
   | Cif(_, c1, c2) | Cwhile(_,c1,_,c2) ->
-    List.iter warn_extra_i c1;
-    List.iter warn_extra_i c2;
+    List.iter (warn_extra_i pp_opn) c1;
+    List.iter (warn_extra_i pp_opn) c2;
   | Cfor _ ->
     hierror ~loc:(Lmore i.i_loc) ~kind:"compilation error" ~internal:true
       "for loop remains"
   | Ccall _ -> ()
 
-let warn_extra_fd (_, fd) =
-  List.iter warn_extra_i fd.f_body
+let warn_extra_fd pp_opn (_, fd) =
+  List.iter (warn_extra_i pp_opn) fd.f_body
  
-let check_safety_p s p source_p =
+let check_safety_p (type asm) pp_opn s (p : (_, asm) Prog.prog) source_p =
   let () = if SafetyConfig.sc_print_program () then
       let s1,s2 = Glob_options.print_strings s in
       Format.eprintf "@[<v>At compilation pass: %s@;%s@;@;\
                       %a@;@]@."
         s1 s2
-        (Printer.pp_prog ~debug:true) p
+        (Printer.pp_prog ~debug:true pp_opn) p
   in
 
   let () = SafetyConfig.pp_current_config_diff () in
@@ -74,6 +74,7 @@ let check_safety_p s p source_p =
               f_decl.f_name.fn_name = source_f_decl.f_name.fn_name
             ) (snd source_p) in
           let module AbsInt = SafetyInterpreter.AbsAnalyzer(struct
+              type nonrec asm = asm
               let main_source = source_f_decl
               let main = f_decl
               let prog = p
@@ -83,8 +84,44 @@ let check_safety_p s p source_p =
       (List.rev (snd p)) in
   ()
 
+type 'asm arch_params = {
+  pp_opn     : Format.formatter -> 'asm Sopn.sopn -> unit;
+  is_move_op : 'asm -> bool;
+}
+
 (* -------------------------------------------------------------------- *)
 let main () =
+  let pp_opn fmt o =
+    (* I copied [pp_btype] from Printer, probably it is better to add it to the signature of Printer *)
+    let pp_btype fmt = function
+      | Bool -> Format.fprintf fmt "bool"
+      | U i  -> Format.fprintf fmt "u%i" (int_of_ws i)
+      | Int  -> Format.fprintf fmt "int"
+    in
+    let pp_cast fmt = function
+    | Sopn.Oasm (Arch_extra.BaseOp(Some ws, _)) -> Format.fprintf fmt "(%a)" pp_btype (U ws)
+    | _ -> () in
+    let pp_opn o =
+      Conv.string_of_string0 ((Sopn.get_instr_desc (Arch_extra.asm_opI X86_extra.x86_extra) o).str ())
+    in
+    Format.fprintf fmt "%a%s" pp_cast o (pp_opn o)
+  in
+
+  (* TODO: VPMOV ?? *)
+  (* TODO: factorize with coq params *)
+  let is_move_op = X86_params.is_move_op in
+
+  let arch_params = {
+    pp_opn;
+    is_move_op
+  } in
+
+  let (module Ocaml_params : Test_arch.Core_arch) = if true then (module X86_test_arch.X86) else assert false in
+  let (module Arch : Test_arch.Arch) = (module Test_arch.Arch_from_Core_arch (Ocaml_params)) in
+  let (module Regalloc : Regalloc.Regalloc with type extended_op = (Arch.reg, Arch.xreg, Arch.rflag, Arch.cond, Arch.asm_op,
+          Arch.extra_op)
+         Arch_extra.extended_op) = (module Regalloc.Regalloc (Arch)) in
+
   try
     parse();
 
@@ -134,11 +171,11 @@ let main () =
       if !debug then Format.eprintf "Pretty printed to LATEX@."
     end;
   
-    eprint Compiler.Typing Printer.pp_pprog pprog;
+    eprint Compiler.Typing (Printer.pp_pprog arch_params.pp_opn) pprog;
 
     let prog = Subst.remove_params pprog in
     let prog = Inline_array_copy.doit prog in
-    eprint Compiler.ParamsExpansion (Printer.pp_prog ~debug:true) prog;
+    eprint Compiler.ParamsExpansion (Printer.pp_prog ~debug:true pp_opn) prog;
 
     begin try
       Typing.check_prog prog
@@ -154,7 +191,7 @@ let main () =
     if SafetyConfig.sc_comp_pass () = Compiler.ParamsExpansion &&
        !check_safety
     then begin
-      check_safety_p Compiler.ParamsExpansion prog source_prog;
+      check_safety_p pp_opn Compiler.ParamsExpansion prog source_prog;
       donotcompile()
     end;
      
@@ -186,7 +223,7 @@ let main () =
     if !do_compile then begin
   
     (* Now call the coq compiler *)
-    let all_vars = Prog.rip :: Regalloc.X64.all_registers in
+    let all_vars = Prog.rip :: Arch.all_registers in
     let tbl, cprog = Conv.cuprog_of_prog all_vars () prog in
 
     if !debug then Printf.eprintf "translated to coq \n%!";
@@ -212,7 +249,6 @@ let main () =
         in
         List.iter exec to_exec
       end;
-
 
     let lowering_vars = Lowering.(
         let f ty n = 
@@ -314,11 +350,11 @@ let main () =
 
     let pp_cuprog fmt cp =
       let p = Conv.prog_of_cuprog tbl cp in
-      Printer.pp_prog ~debug:true fmt p in
+      Printer.pp_prog ~debug:true pp_opn fmt p in
 
     let pp_csprog fmt cp =
       let p = Conv.prog_of_csprog tbl cp in
-      Printer.pp_sprog ~debug:true tbl fmt p in
+      Printer.pp_sprog ~debug:true tbl pp_opn fmt p in
 
     let pp_linear fmt lp =
       PrintLinear.pp_prog tbl fmt lp in
@@ -378,7 +414,7 @@ let main () =
 
     let removereturn sp = 
       let (fds,_data) = Conv.prog_of_csprog tbl sp in
-      let tokeep = RemoveUnusedResults.analyse  fds in 
+      let tokeep = RemoveUnusedResults.analyse arch_params.is_move_op fds in 
       let tokeep fn = tokeep (Conv.fun_of_cfun tbl fn) in
       tokeep in
 
@@ -397,7 +433,7 @@ let main () =
     let warn_extra s p =
       if s = Compiler.DeadCode_RegAllocation then
         let (fds, _) = Conv.prog_of_csprog tbl p in
-        List.iter warn_extra_fd fds in
+        List.iter (warn_extra_fd pp_opn) fds in
 
 
     let cparams = {
