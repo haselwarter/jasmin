@@ -20,14 +20,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Section PROG.
-
-Context
-  (p: lprog)
-  (p': asm_prog)
-  (ok_p': assemble_prog assemble_cond p = ok p').
-
-Lemma not_condtP (c : cond_t) rf b :
+Lemma not_condtP (c : condt) rf b :
   eval_cond rf c = ok b -> eval_cond rf (not_condt c) = ok (negb b).
 Proof.
   case: c => /=.
@@ -345,5 +338,3 @@ apply: (Forall2_trans value_uincl_trans).
 apply: get_xreg_of_vars_uincl; eassumption.
 Qed.
 *)
-
-End PROG.
