@@ -127,8 +127,8 @@ End ARCH.
 *)
 Class asm_extra (reg xreg rflag cond asm_op extra_op : Type) := 
   { _asm   :> asm reg xreg rflag cond asm_op
-  ; _extra :> asmOp extra_op (* description of extra ops *)
-  ; to_asm : instr_info -> extra_op -> lvals -> pexprs -> cexec (asm_op_msb_t * lvals * pexprs)
+  ; _extra :> asm_op_decl extra_op (* description of extra ops *) | 10
+  ; to_asm : instr_info -> extra_op -> lvals -> pexprs -> cexec (asm_op_msb_t (asm_op_d:=_asm_op_decl) * lvals * pexprs)
       (* how to compile extra ops into asm op *)
   }.
 
@@ -158,9 +158,12 @@ Definition extended_op_eqMixin := Equality.Mixin extended_op_eq_axiom.
 Definition extended_op_eqType := EqType extended_op extended_op_eqMixin.
 
 Definition get_instr_desc (o: extended_op) : instruction_desc :=
+ let id :=
  match o with
- | BaseOp o =>
-   let id := instr_desc o in
+ | BaseOp o => instr_desc o
+ | ExtOp o => instr_desc_op o
+ end
+ in
    {| str      := id.(id_str_jas)
     ; tin      := id.(id_tin)
     ; i_in     := map sopn_arg_desc id.(id_in)
@@ -169,9 +172,7 @@ Definition get_instr_desc (o: extended_op) : instruction_desc :=
     ; semi     := id.(id_semi)
     ; semu     := @vuincl_app_sopn_v_eq _ _ id.(id_semi) id.(id_tin_narr)
     ; wsizei   := id.(id_wsize)
-    ; i_safe   := id.(id_safe) |}
- | ExtOp o => asm_op_instr o
- end.
+    ; i_safe   := id.(id_safe) |}.
 
 Instance eqTC_extended_op : eqTypeC extended_op :=
   { ceqP := extended_op_eq_axiom }.

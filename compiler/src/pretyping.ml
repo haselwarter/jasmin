@@ -1241,12 +1241,12 @@ let prim_sig (type a) p : a P.gty list * a P.gty list * Sopn.arg_desc list =
   List.map f o.tin,
   o.i_out
 
-type prim_constructor =
-  | PrimP of W.wsize * (W.wsize option -> W.wsize -> X86_extra.x86_extended_op Sopn.sopn)
-  | PrimM of (W.wsize option -> X86_extra.x86_extended_op Sopn.sopn)
-  | PrimV of (W.wsize option -> W.signedness -> W.velem -> W.wsize -> X86_extra.x86_extended_op Sopn.sopn)
-  | PrimX of (W.wsize option -> W.wsize -> W.wsize -> X86_extra.x86_extended_op Sopn.sopn)
-  | PrimVV of (W.wsize option -> W.velem -> W.wsize -> W.velem -> W.wsize -> X86_extra.x86_extended_op Sopn.sopn)
+type 'asm prim_constructor =
+  | PrimP of W.wsize * (W.wsize option -> W.wsize -> 'asm Sopn.sopn)
+  | PrimM of (W.wsize option -> 'asm Sopn.sopn)
+  | PrimV of (W.wsize option -> W.signedness -> W.velem -> W.wsize -> 'asm Sopn.sopn)
+  | PrimX of (W.wsize option -> W.wsize -> W.wsize -> 'asm Sopn.sopn)
+  | PrimVV of (W.wsize option -> W.velem -> W.wsize -> W.velem -> W.wsize -> 'asm Sopn.sopn)
 
 let prim_string =
   [ "mulu", PrimP (W.U64, fun _ws sz -> Omulu sz);

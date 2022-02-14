@@ -330,7 +330,7 @@ Record pp_asm_op := mk_pp_asm_op {
   pp_aop_args : seq (wsize * asm_arg);
 }.
 
-Record instr_desc_t := mk_instr_desc {
+Record instr_desc_t := mk_instr_desc33 {
   (* Info for x86 sem *)
   id_msb_flag   : msb_flag;
   id_tin        : seq stype;

@@ -10,9 +10,11 @@ module type Core_arch = sig
   type cond
   type asm_op
   type extra_op
+  type fresh_vars
+  type lowering_options
 
   val asm_e : (reg, xreg, rflag, cond, asm_op, extra_op) asm_extra
-  val aparams : (reg, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op Compiler.architecture_params
+  val aparams : (reg, xreg, rflag, cond, asm_op, extra_op, fresh_vars, lowering_options) Compiler.architecture_params
 
   (* val rip : reg ?? *)
   val rsp : reg

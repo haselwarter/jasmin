@@ -5,8 +5,6 @@ open Glob_options
 (* -------------------------------------------------------------------- *)
 exception UsageError
 
-let aparams = X86_params.x86_params
-
 let parse () =
   let error () = raise UsageError in
   let set_in s =
@@ -107,17 +105,8 @@ let main () =
     Format.fprintf fmt "%a%s" pp_cast o (pp_opn o)
   in
 
-  (* TODO: VPMOV ?? *)
-  (* TODO: factorize with coq params *)
-  let is_move_op = X86_params.is_move_op in
-
-  let arch_params = {
-    pp_opn;
-    is_move_op
-  } in
-
   let (module Ocaml_params : Test_arch.Core_arch) = if true then (module X86_test_arch.X86) else assert false in
-  let (module Arch : Test_arch.Arch) = (module Test_arch.Arch_from_Core_arch (Ocaml_params)) in
+  let module Arch = Test_arch.Arch_from_Core_arch (Ocaml_params) in
   let (module Regalloc : Regalloc.Regalloc with type extended_op = (Arch.reg, Arch.xreg, Arch.rflag, Arch.cond, Arch.asm_op,
           Arch.extra_op)
          Arch_extra.extended_op) = (module Regalloc.Regalloc (Arch)) in
@@ -171,11 +160,11 @@ let main () =
       if !debug then Format.eprintf "Pretty printed to LATEX@."
     end;
   
-    eprint Compiler.Typing (Printer.pp_pprog arch_params.pp_opn) pprog;
+    eprint Compiler.Typing (Printer.pp_pprog Arch.pp_opn) pprog;
 
     let prog = Subst.remove_params pprog in
     let prog = Inline_array_copy.doit prog in
-    eprint Compiler.ParamsExpansion (Printer.pp_prog ~debug:true pp_opn) prog;
+    eprint Compiler.ParamsExpansion (Printer.pp_prog ~debug:true Arch.pp_opn) prog;
 
     begin try
       Typing.check_prog prog
@@ -276,7 +265,7 @@ let main () =
     let translate_var = Conv.var_of_cvar tbl in
     
     let memory_analysis up : Compiler.stack_alloc_oracles =
-      let is_move_op = aparams.is_move_op in
+      let is_move_op = Arch.aparams.is_move_op in
       StackAlloc.memory_analysis (Printer.pp_err ~debug:!debug) ~debug:!debug tbl is_move_op up
      in
 
@@ -414,7 +403,7 @@ let main () =
 
     let removereturn sp = 
       let (fds,_data) = Conv.prog_of_csprog tbl sp in
-      let tokeep = RemoveUnusedResults.analyse arch_params.is_move_op fds in 
+      let tokeep = RemoveUnusedResults.analyse Arch.aparams.is_move_op fds in 
       let tokeep fn = tokeep (Conv.fun_of_cfun tbl fn) in
       tokeep in
 

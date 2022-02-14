@@ -7,9 +7,11 @@ module X86 : Test_arch.Core_arch = struct
   type cond = condt
   type asm_op = X86_instr_decl.x86_op
   type extra_op = X86_extra.x86_extra_op
+  type fresh_vars = Lowering.fresh_vars
+  type lowering_options = Lowering.lowering_options
 
   let asm_e = X86_extra.x86_extra
-  let aparams = X86_params.aparams
+  let aparams = X86_params.x86_params
 
   (* val rip : reg ?? *)
   let rsp = RSP
