@@ -17,13 +17,17 @@ module Pa : sig
     if_conds : expr list;
   }
   val dp_v : dp -> var -> Sv.t
-  val pa_make : ('info, 'asm) func -> ('info, 'asm) prog option -> pa_res
+  val pa_make :
+    ('info, X86_extra.x86_extended_op) func -> ('info, X86_extra.x86_extended_op) prog option -> pa_res
   val print_dp : Format.formatter -> dp -> unit
   val print_cfg : Format.formatter -> cfg -> unit
 end
 
 module FSPa : sig
-  val fs_pa_make : ('info, 'asm) func -> (unit, 'asm) func * Pa.pa_res
+  val fs_pa_make :
+    (X86_extra.x86_extended_op -> bool) ->
+    (Format.formatter -> X86_extra.x86_extended_op Sopn.sopn -> unit) ->
+    ('info, X86_extra.x86_extended_op) func -> (unit, X86_extra.x86_extended_op) func * Pa.pa_res
 end
 
 (*---------------------------------------------------------------*)

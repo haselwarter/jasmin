@@ -27,6 +27,16 @@ module type Core_arch = sig
   val xmm_ret : xreg list
   val reserved : reg list
   val callee_save : reg list
+
+  val lowering_vars : 'a Conv.coq_tbl -> fresh_vars
+  val lowering_opt : lowering_options
+
+  val pp_asm : 'info Conv.coq_tbl -> Format.formatter -> (reg, xreg, rflag, cond, asm_op) Arch_decl.asm_prog -> unit
+  val analyze :
+    (unit, (reg, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op) Prog.func ->
+    (unit, (reg, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op) Prog.func ->
+    (unit, (reg, xreg, rflag, cond, asm_op, extra_op) Arch_extra.extended_op) Prog.prog ->
+    unit
 end
 
 module type Arch = sig
@@ -111,6 +121,8 @@ module Arch_from_Core_arch (A : Core_arch) : Arch = struct
 
   let all_registers = reg_vars @ xreg_vars @ flag_vars
 
+  (* FIXME: in many places, we are using both pp_opn and asmOp, and pp_opn can be defined from asmOp, so better use just asmOp ?? *)
   let pp_opn fmt o =
     Format.fprintf fmt "%s" (Conv.string_of_string0 (Sopn.string_of_sopn (Arch_extra.asm_opI A.asm_e) o))
+
 end

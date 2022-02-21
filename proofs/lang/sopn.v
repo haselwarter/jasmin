@@ -71,9 +71,20 @@ Notation mk_instr_desc str tin i_in tout i_out semi wsizei safe:=
      i_safe   := safe;
   |}.
 
+(* FIXME: duplication with arch_decl *)
+Variant prim_constructor (asm_op:Type) :=
+  | PrimP of wsize & (option wsize -> wsize -> asm_op)
+  | PrimM of (option wsize -> asm_op)
+  | PrimV of (option wsize -> velem -> wsize -> asm_op)
+  | PrimSV of (option wsize -> signedness -> velem -> wsize -> asm_op)
+  | PrimX of (option wsize -> wsize -> wsize -> asm_op)
+  | PrimVV of (option wsize -> velem -> wsize -> velem -> wsize -> asm_op)
+  .
+
 Class asmOp (asm_op : Type) := {
   _eqT           :> eqTypeC asm_op
   ; asm_op_instr : asm_op -> instruction_desc
+  ; prim_string   : list (string * prim_constructor asm_op)
 }.
 
 Definition asm_op_t {asm_op} {asmop : asmOp asm_op} := asm_op.

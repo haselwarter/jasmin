@@ -1,13 +1,14 @@
 module type ExportWrap = sig
-  type asm
   (* main function, before any compilation pass *)
-  val main_source : (unit, asm) Prog.func
+  val main_source : (unit, X86_extra.x86_extended_op) Prog.func
       
-  val main : (unit, asm) Prog.func
-  val prog : (unit, asm) Prog.prog
+  val main : (unit, X86_extra.x86_extended_op) Prog.func
+  val prog : (unit, X86_extra.x86_extended_op) Prog.prog
 end
 
 (* Abstract Interpreter. *)
 module AbsAnalyzer (PW : ExportWrap) : sig
-  val analyze : unit -> unit
+  val analyze :
+    (Format.formatter -> X86_extra.x86_extended_op Sopn.sopn -> unit) ->
+    unit -> unit
 end

@@ -23,7 +23,7 @@ module type Regalloc = sig
 end
 
 module Regalloc :
-  functor (Arch : Test_arch.Arch) -> Regalloc with type extended_op = (Arch.reg, Arch.xreg, Arch.rflag, Arch.cond, Arch.asm_op,
+  functor (Arch : Test_arch.Arch) -> Regalloc with type extended_op := (Arch.reg, Arch.xreg, Arch.rflag, Arch.cond, Arch.asm_op,
           Arch.extra_op)
          Arch_extra.extended_op
          (*

@@ -51,7 +51,7 @@ let rec warn_extra_i pp_opn i =
 let warn_extra_fd pp_opn (_, fd) =
   List.iter (warn_extra_i pp_opn) fd.f_body
  
-let check_safety_p (type asm) pp_opn s (p : (_, asm) Prog.prog) source_p =
+let check_safety_p pp_opn analyze s (p : (_, 'asm) Prog.prog) source_p =
   let () = if SafetyConfig.sc_print_program () then
       let s1,s2 = Glob_options.print_strings s in
       Format.eprintf "@[<v>At compilation pass: %s@;%s@;@;\
@@ -71,45 +71,31 @@ let check_safety_p (type asm) pp_opn s (p : (_, asm) Prog.prog) source_p =
           let source_f_decl = List.find (fun source_f_decl ->
               f_decl.f_name.fn_name = source_f_decl.f_name.fn_name
             ) (snd source_p) in
-          let module AbsInt = SafetyInterpreter.AbsAnalyzer(struct
-              type nonrec asm = asm
-              let main_source = source_f_decl
-              let main = f_decl
-              let prog = p
-            end) in
-
-          AbsInt.analyze ())
+          analyze source_f_decl f_decl p)
       (List.rev (snd p)) in
   ()
 
-type 'asm arch_params = {
-  pp_opn     : Format.formatter -> 'asm Sopn.sopn -> unit;
-  is_move_op : 'asm -> bool;
-}
-
 (* -------------------------------------------------------------------- *)
 let main () =
-  let pp_opn fmt o =
-    (* I copied [pp_btype] from Printer, probably it is better to add it to the signature of Printer *)
-    let pp_btype fmt = function
-      | Bool -> Format.fprintf fmt "bool"
-      | U i  -> Format.fprintf fmt "u%i" (int_of_ws i)
-      | Int  -> Format.fprintf fmt "int"
-    in
-    let pp_cast fmt = function
-    | Sopn.Oasm (Arch_extra.BaseOp(Some ws, _)) -> Format.fprintf fmt "(%a)" pp_btype (U ws)
-    | _ -> () in
-    let pp_opn o =
-      Conv.string_of_string0 ((Sopn.get_instr_desc (Arch_extra.asm_opI X86_extra.x86_extra) o).str ())
-    in
-    Format.fprintf fmt "%a%s" pp_cast o (pp_opn o)
-  in
 
-  let (module Ocaml_params : Test_arch.Core_arch) = if true then (module X86_test_arch.X86) else assert false in
+  let lowering_vars tbl = Lowering.(
+    let f ty n = 
+      let v = V.mk n (Reg Direct) ty L._dummy [] in
+      Conv.cvar_of_var tbl v in
+    let b = f tbool in
+    { fresh_OF = (b "OF").vname
+    ; fresh_CF = (b "CF").vname
+    ; fresh_SF = (b "SF").vname
+    ; fresh_PF = (b "PF").vname
+    ; fresh_ZF = (b "ZF").vname
+    ; fresh_multiplicand = (fun sz -> (f (Bty (U sz)) "multiplicand").vname)
+    }) in
+  let lowering_opt =
+    Lowering.{ use_lea = !Glob_options.lea;
+               use_set0 = !Glob_options.set0; }; in
+  let (module Ocaml_params : Test_arch.Core_arch) = if true then (module X86_test_arch.X86 (struct let lowering_vars = lowering_vars let lowering_opt = lowering_opt end)) else assert false in
   let module Arch = Test_arch.Arch_from_Core_arch (Ocaml_params) in
-  let (module Regalloc : Regalloc.Regalloc with type extended_op = (Arch.reg, Arch.xreg, Arch.rflag, Arch.cond, Arch.asm_op,
-          Arch.extra_op)
-         Arch_extra.extended_op) = (module Regalloc.Regalloc (Arch)) in
+  let module Regalloc = Regalloc.Regalloc (Arch) in
 
   try
     parse();
@@ -121,7 +107,7 @@ let main () =
       exit 0);
 
     if !help_intrinsics
-    then (Help.show_intrinsics (); exit 0);
+    then (Help.show_intrinsics (Arch_extra.asm_opI Arch.asm_e)(); exit 0);
 
     let () = if !check_safety then
         match !safety_config with
@@ -133,7 +119,7 @@ let main () =
       try 
         let env = Pretyping.Env.empty in
         let env = List.fold_left Pretyping.Env.add_from env !Glob_options.idirs in
-        Pretyping.tt_program env fname
+        Pretyping.tt_program (Arch_extra.asm_opI Arch.asm_e) env fname
       with
       | Pretyping.TyError (loc, code) -> hierror ~loc:(Lone loc) ~kind:"typing error" "%a" Pretyping.pp_tyerror code
       | Syntax.ParseError (loc, msg) ->
@@ -167,7 +153,7 @@ let main () =
     eprint Compiler.ParamsExpansion (Printer.pp_prog ~debug:true Arch.pp_opn) prog;
 
     begin try
-      Typing.check_prog prog
+      Typing.check_prog (Arch_extra.asm_opI Arch.asm_e) prog
     with Typing.TyError(loc, code) ->
       hierror ~loc:(Lmore loc) ~kind:"typing error" "%s" code
     end;
@@ -180,7 +166,7 @@ let main () =
     if SafetyConfig.sc_comp_pass () = Compiler.ParamsExpansion &&
        !check_safety
     then begin
-      check_safety_p pp_opn Compiler.ParamsExpansion prog source_prog;
+      check_safety_p Arch.pp_opn Arch.analyze Compiler.ParamsExpansion prog source_prog;
       donotcompile()
     end;
      
@@ -194,7 +180,7 @@ let main () =
       begin try
         BatPervasives.finally
           (fun () -> close ())
-          (fun () -> ToEC.extract fmt !model prog !ec_list)
+          (fun () -> ToEC.extract (Arch_extra.asm_opI Arch.asm_e) Arch.pp_opn fmt !model prog !ec_list)
           ()
       with e ->
         BatPervasives.ignore_exceptions
@@ -229,7 +215,7 @@ let main () =
               (** TODO: allow to configure the initial stack pointer *)
               let live = List.map (fun (ptr, sz) -> Conv.int64_of_bi ptr, Conv.z_of_bi sz) m in
               (match (Low_memory.Memory.coq_M U64).init live (Conv.int64_of_bi (Bigint.of_string "1024")) with Utils0.Ok m -> m | Utils0.Error err -> raise (Evaluator.Eval_error (Coq_xH, err))) |>
-              Evaluator.exec (Expr.to_uprog (Arch_extra.asm_opI X86_extra.x86_extra) cprog) (Conv.cfun_of_fun tbl f) in
+              Evaluator.exec (Arch_extra.asm_opI Arch.asm_e) (Expr.to_uprog (Arch_extra.asm_opI Arch.asm_e) cprog) (Conv.cfun_of_fun tbl f) in
             Format.printf "@[<v>%a@]@."
               (pp_list "@ " Evaluator.pp_val) vs
           with Evaluator.Eval_error (ii,err) ->
@@ -238,19 +224,6 @@ let main () =
         in
         List.iter exec to_exec
       end;
-
-    let lowering_vars = Lowering.(
-        let f ty n = 
-          let v = V.mk n (Reg Direct) ty L._dummy [] in
-          Conv.cvar_of_var tbl v in
-        let b = f tbool in
-        { fresh_OF = (b "OF").vname
-        ; fresh_CF = (b "CF").vname
-        ; fresh_SF = (b "SF").vname
-        ; fresh_PF = (b "PF").vname
-        ; fresh_ZF = (b "ZF").vname
-        ; fresh_multiplicand = (fun sz -> (f (Bty (U sz)) "multiplicand").vname)
-        }) in
 
     let fdef_of_cufdef fn cfd = Conv.fdef_of_cufdef tbl (fn,cfd) in
     let cufdef_of_fdef fd = snd (Conv.cufdef_of_fdef tbl fd) in
@@ -265,8 +238,16 @@ let main () =
     let translate_var = Conv.var_of_cvar tbl in
     
     let memory_analysis up : Compiler.stack_alloc_oracles =
-      let is_move_op = Arch.aparams.is_move_op in
-      StackAlloc.memory_analysis (Printer.pp_err ~debug:!debug) ~debug:!debug tbl is_move_op up
+      let dead_code_fd = Dead_code.dead_code_fd (Arch_extra.asm_opI Arch.asm_e) Arch.aparams.is_move_op in
+      let stackalloc_prog = Stack_alloc.alloc_prog U64 (Arch_extra.asm_opI Arch.asm_e) false Arch.aparams.mov_ofs in
+      let regalloc_prog translate_var has_stack dfuncs =
+        let (fds, _) = Regalloc.alloc_prog translate_var has_stack dfuncs in
+        fds
+      in
+      StackAlloc.memory_analysis (Printer.pp_err ~debug:!debug) ~debug:!debug
+        Arch.pp_opn Arch.aparams.is_move_op
+        dead_code_fd stackalloc_prog regalloc_prog
+        tbl up
      in
 
     let global_regalloc fds =
@@ -339,14 +320,14 @@ let main () =
 
     let pp_cuprog fmt cp =
       let p = Conv.prog_of_cuprog tbl cp in
-      Printer.pp_prog ~debug:true pp_opn fmt p in
+      Printer.pp_prog ~debug:true Arch.pp_opn fmt p in
 
     let pp_csprog fmt cp =
       let p = Conv.prog_of_csprog tbl cp in
-      Printer.pp_sprog ~debug:true tbl pp_opn fmt p in
+      Printer.pp_sprog ~debug:true tbl Arch.pp_opn fmt p in
 
     let pp_linear fmt lp =
-      PrintLinear.pp_prog tbl fmt lp in
+      PrintLinear.pp_prog (Arch_extra.asm_opI Arch.asm_e) tbl fmt lp in
 
     let rename_fd ii fn cfd =
       let ii, _, _ = Conv.get_iinfo tbl ii in
@@ -422,7 +403,7 @@ let main () =
     let warn_extra s p =
       if s = Compiler.DeadCode_RegAllocation then
         let (fds, _) = Conv.prog_of_csprog tbl p in
-        List.iter (warn_extra_fd pp_opn) fds in
+        List.iter (warn_extra_fd Arch.pp_opn) fds in
 
 
     let cparams = {
@@ -440,7 +421,7 @@ let main () =
         let loc, _, _ = Conv.get_iinfo tbl ii in
         !saved_extra_free_registers loc |> omap (Conv.cvar_of_var tbl)
       );
-      Compiler.lowering_vars = lowering_vars;
+      Compiler.lowering_vars = Arch.lowering_vars tbl;
       Compiler.is_var_in_memory = is_var_in_memory;
       Compiler.print_uprog  = (fun s p -> eprint s pp_cuprog p; p);
       Compiler.print_sprog  = (fun s p -> warn_extra s p;
@@ -448,8 +429,7 @@ let main () =
       Compiler.print_linear = (fun s p -> eprint s pp_linear p; p);
       Compiler.warning      = warning;
       Compiler.inline_var   = inline_var;
-      Compiler.lowering_opt = Lowering.{ use_lea = !Glob_options.lea;
-                                         use_set0 = !Glob_options.set0; };
+      Compiler.lowering_opt = Arch.lowering_opt;
       Compiler.is_glob     = is_glob;
       Compiler.fresh_id    = fresh_id;
       Compiler.fresh_counter = fresh_counter;
@@ -472,12 +452,12 @@ let main () =
 
     begin match
       Compiler.compile_prog_to_asm
-        X86_extra.x86_extra
-        X86_params.x86_params
+        Arch.asm_e
+        Arch.aparams
         cparams
         export_functions
         subroutines
-        (Expr.to_uprog (Arch_extra.asm_opI X86_extra.x86_extra) cprog)
+        (Expr.to_uprog (Arch_extra.asm_opI Arch.asm_e) cprog)
       with
     | Utils0.Error e ->
       let e = Conv.error_of_cerror (Printer.pp_err ~debug:!debug tbl) tbl e in
@@ -486,10 +466,10 @@ let main () =
       if !outfile <> "" then begin
         BatFile.with_file_out !outfile (fun out ->
           let fmt = BatFormat.formatter_of_out_channel out in
-          Format.fprintf fmt "%a%!" (Ppasm.pp_prog tbl) asm);
+          Format.fprintf fmt "%a%!" (Arch.pp_asm tbl) asm);
           if !debug then Format.eprintf "assembly listing written@."
       end else if List.mem Compiler.Assembly !print_list then
-          Format.printf "%a%!" (Ppasm.pp_prog tbl) asm
+          Format.printf "%a%!" (Arch.pp_asm tbl) asm
     end
     end
   with

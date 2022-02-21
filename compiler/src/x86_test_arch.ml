@@ -1,6 +1,6 @@
 open X86_decl
 
-module X86 : Test_arch.Core_arch = struct
+module X86 (Lowering_params : sig val lowering_vars : 'a Conv.coq_tbl -> Lowering.fresh_vars val lowering_opt : Lowering.lowering_options end) : Test_arch.Core_arch = struct
   type reg = register
   type xreg = xmm_register
   type nonrec rflag = rflag
@@ -56,4 +56,21 @@ module X86 : Test_arch.Core_arch = struct
   let callee_save = [
     RBP; RBX; R12; R13; R14; R15
   ]
+
+  include Lowering_params
+
+  let pp_asm = Ppasm.pp_prog
+
+  let analyze source_f_decl f_decl p =
+    let module AbsInt = SafetyInterpreter.AbsAnalyzer(struct
+        let main_source = source_f_decl
+        let main = f_decl
+        let prog = p
+      end) in
+  (* FIXME: code duplication! already in test_arch.ml *)
+  let pp_opn fmt o =
+    Format.fprintf fmt "%s" (Conv.string_of_string0 (Sopn.string_of_sopn (Arch_extra.asm_opI asm_e) o))
+  in
+  AbsInt.analyze pp_opn ()
+
 end

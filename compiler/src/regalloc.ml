@@ -630,6 +630,27 @@ struct
 
 end
 *)
+
+type reg_oracle_t = {
+    ro_to_save: var list;
+    ro_rsp: var option;
+    ro_return_address: var option;
+  }
+
+module type Regalloc = sig
+  type extended_op
+
+  val split_live_ranges : (unit, extended_op) func -> (unit, extended_op) func
+  val renaming : (unit, extended_op) func -> (unit, extended_op) func
+  val remove_phi_nodes : (unit, extended_op) func -> (unit, extended_op) func
+
+  val alloc_prog :
+    (Var0.Var.var -> var) -> ((unit, extended_op) func -> 'a -> bool) ->
+    ('a * (unit, extended_op) func) list ->
+    ('a * reg_oracle_t * (unit, extended_op) func) list
+    * (L.i_loc -> var option)
+end
+
 module Regalloc (Arch : Test_arch.Arch) = struct
 
   let forced_registers translate_var loc nv (vars: int Hv.t) (cnf: conflicts)
@@ -846,7 +867,7 @@ let reverse_varmap nv (vars: int Hv.t) : A.allocation =
   a
 
 let split_live_ranges (f: ('info, 'asm) func) : (unit, 'asm) func =
-  Ssa.split_live_ranges Arch.aparams true f
+  Ssa.split_live_ranges Arch.aparams.is_move_op true f
 
 let renaming (f: ('info, 'asm) func) : (unit, 'asm) func =
   let vars, nv = collect_variables ~allvars:true Sv.empty f in
@@ -919,8 +940,8 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
   let killed fn = Hf.find killed_map fn in
   let preprocess f =
     Hf.add annot_table f.f_name f.f_annot;
-    let f = f |> fill_in_missing_names |> Ssa.split_live_ranges Arch.aparams false in
-    Hf.add liveness_table f.f_name (Liveness.live_fd Arch.aparams true f);
+    let f = f |> fill_in_missing_names |> Ssa.split_live_ranges Arch.aparams.is_move_op false in
+    Hf.add liveness_table f.f_name (Liveness.live_fd Arch.aparams.is_move_op true f);
     let written =
       let written, cg = written_vars_fc f in
       let written =
@@ -975,7 +996,7 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
   in
   let excluded = Sv.of_list [Prog.rip; Arch.rsp_var] in
   let vars, nv = collect_variables_in_prog ~allvars:false excluded return_addresses extra_free_registers funcs in
-  let eqc, tr, fr = collect_equality_constraints_in_prog (Arch_extra.asm_opI Arch.asm_e) Arch.aparams "Regalloc" asm_equality_constraints vars nv funcs in
+  let eqc, tr, fr = collect_equality_constraints_in_prog (Arch_extra.asm_opI Arch.asm_e) Arch.aparams.is_move_op "Regalloc" asm_equality_constraints vars nv funcs in
   let vars = normalize_variables vars eqc in
   (* Intra-procedural conflicts *)
   let conflicts =
@@ -1029,12 +1050,6 @@ let global_allocation translate_var (funcs: ('info, 'asm) func list) : (unit, 'a
   , killed
   , extra_free_registers
   , return_addresses
-
-type reg_oracle_t = {
-    ro_to_save: var list;
-    ro_rsp: var option;
-    ro_return_address: var option;
-  }
 
 let alloc_prog translate_var (has_stack: ('info, 'asm) func -> 'a -> bool) (dfuncs: ('a * ('info, 'asm) func) list)
     : ('a * reg_oracle_t * (unit, 'asm) func) list * (L.i_loc -> var option) =

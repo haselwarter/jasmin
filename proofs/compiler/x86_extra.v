@@ -56,41 +56,44 @@ Qed.
 Definition x86_extra_op_eqMixin     := Equality.Mixin x86_extra_op_eq_axiom.
 Canonical  x86_extra_op_eqType      := Eval hnf in EqType x86_extra_op x86_extra_op_eqMixin.
 
-(* Local Notation E n := (arch_decl.ADExplicit n None). *)
+Local Notation E n := (ADExplicit n None).
 
 Definition Oset0_instr sz  :=
   if (sz <= U64)%CMP then 
-  mk_instr (pp_sz "set0" sz) [::] 
-             (b5w_ty sz) [::] (implicit_flags ++ [:: E 0]) MSB_MERGE (let vf := Some false in
+    mk_instr_desc (pp_sz "set0" sz)
+             [::] [::]
+             (b5w_ty sz) (map sopn_arg_desc implicit_flags ++ [:: E 0])
+             (let vf := Some false in
               let vt := Some true in
               ok (::vf, vf, vf, vt, vt & (0%R: word sz)))
-              [::] 3 sz [::] (pp_iname "set0" sz)
-  else
-    mk_instr (pp_sz "setw0" sz)
-             [::] (w_ty sz)
-             [::] [::E 0]
-             MSB_MERGE
-             (ok (0%R:word sz))
-             [::] 3
-             sz [::] (pp_iname "setw0" sz).
+             sz [::]
+  else 
+    mk_instr_desc (pp_sz "setw0" sz)
+             [::] [::]  
+             (w_ty sz) [::E 0] 
+             (ok (0%R: word sz)) sz [::].
 
-Definition Oconcat128_instr :=
-  mk_instr (pp_s "concat_2u128") 
-           [:: sword128; sword128 ] [:: sword256]
-           [:: E 1; E 2] [:: E 0] 
-           MSB_MERGE
+(* define both instr and prim, cf. x86_instr_decl *)
+Definition Oset0_prim : string * prim_constructor x86_extra_op := ("set0"%string, PrimP U64 (fun _ sz => Oset0 sz)).
+
+Definition Oconcat128_instr := 
+  mk_instr_desc (pp_s "concat_2u128") 
+           [:: sword128; sword128 ] [:: E 1; E 2] 
+           [:: sword256] [:: E 0] 
            (λ h l : u128, ok (make_vec U256 [::l;h]))
-           [::] 3
-           U128 [::] (pp_iname "concat128" U8).
+           U128 [::].
+
+Definition Oconcat128_prim := ("concat_2u128"%string, PrimM (fun _ => Oconcat128)).
 
 Definition Ox86MOVZX32_instr := 
-  mk_instr (pp_s "MOVZX32") 
-           [:: sword32] [:: sword64]
-           [:: E 1] [:: E 0] 
-           MSB_MERGE
+  mk_instr_desc (pp_s "MOVZX32") 
+           [:: sword32] [:: E 1] 
+           [:: sword64] [:: E 0] 
            (λ x : u32, ok (zero_extend U64 x)) 
-           [::] 2
-           U32 [::] (pp_iname "movzx32" U8).
+           U32 [::].
+
+(* FIXME: do we need to add this op to parsing ? What Prim ??? I put something random *)
+Definition Ox86MOVZX32_prim := ("MOVZX32"%string, PrimM (fun _ => Ox86MOVZX32)).
 
 Definition get_instr_desc o :=
   match o with
@@ -99,6 +102,7 @@ Definition get_instr_desc o :=
   | Ox86MOVZX32 => Ox86MOVZX32_instr
   end.
 
+Definition prim_string := [:: Oset0_prim; Oconcat128_prim; Ox86MOVZX32_prim].
 
 (* TODO: to be removed? can we have one module for all asmgen errors? *)
 Module E.
@@ -150,9 +154,9 @@ Instance eqC_x86_extra_op : eqTypeC x86_extra_op :=
    meaning that extra ops are the only possible ops. With that priority,
    [arch_extra.asm_opI] is selected first and we have both base and extra ops.
 *)
-Instance x86_extra_op_decl : asm_op_decl x86_extra_op | 1 :=
-  { instr_desc_op := get_instr_desc;
-    prim_string := [::] }.
+Instance x86_extra_op_decl : asmOp x86_extra_op | 1 :=
+  { asm_op_instr := get_instr_desc;
+    prim_string := prim_string }.
 
 Instance x86_extra : asm_extra register xmm_register rflag condt x86_op x86_extra_op :=
   { to_asm := assemble_extra }.

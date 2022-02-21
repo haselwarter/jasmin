@@ -127,8 +127,8 @@ End ARCH.
 *)
 Class asm_extra (reg xreg rflag cond asm_op extra_op : Type) := 
   { _asm   :> asm reg xreg rflag cond asm_op
-  ; _extra :> asm_op_decl extra_op (* description of extra ops *) | 10
-  ; to_asm : instr_info -> extra_op -> lvals -> pexprs -> cexec (asm_op_msb_t (asm_op_d:=_asm_op_decl) * lvals * pexprs)
+  ; _extra :> asmOp extra_op (* description of extra ops *)
+  ; to_asm : instr_info -> extra_op -> lvals -> pexprs -> cexec (asm_op_msb_t * lvals * pexprs)
       (* how to compile extra ops into asm op *)
   }.
 
@@ -158,12 +158,9 @@ Definition extended_op_eqMixin := Equality.Mixin extended_op_eq_axiom.
 Definition extended_op_eqType := EqType extended_op extended_op_eqMixin.
 
 Definition get_instr_desc (o: extended_op) : instruction_desc :=
- let id :=
  match o with
- | BaseOp o => instr_desc o
- | ExtOp o => instr_desc_op o
- end
- in
+ | BaseOp o =>
+   let id := instr_desc o in
    {| str      := id.(id_str_jas)
     ; tin      := id.(id_tin)
     ; i_in     := map sopn_arg_desc id.(id_in)
@@ -172,12 +169,44 @@ Definition get_instr_desc (o: extended_op) : instruction_desc :=
     ; semi     := id.(id_semi)
     ; semu     := @vuincl_app_sopn_v_eq _ _ id.(id_semi) id.(id_tin_narr)
     ; wsizei   := id.(id_wsize)
-    ; i_safe   := id.(id_safe) |}.
+    ; i_safe   := id.(id_safe) |}
+ | ExtOp o => asm_op_instr o
+ end.
+
+(* FIXME: remove this duplication *)
+Definition sopn_prim_constructor (f:option wsize -> asm_op -> extended_op) (p : prim_constructor asm_op) : sopn.prim_constructor extended_op :=
+  match p with
+  | PrimP x1 x2 => sopn.PrimP x1 (fun ws1 ws2 => f ws1 (x2 ws2))
+  | PrimM x => sopn.PrimM (fun ws => f ws x)
+  | PrimV x => sopn.PrimV (fun ws1 v ws2 => f ws1 (x v ws2))
+  | PrimSV x => sopn.PrimSV (fun ws1 s v ws2 => f ws1 (x s v ws2))
+  | PrimX x => sopn.PrimX (fun ws1 ws2 ws3 => f ws1 (x ws2 ws3))
+  | PrimVV x => sopn.PrimVV (fun ws1 v1 ws2 v2 ws3 => f ws1 (x v1 ws2 v2 ws3))
+  end.
+Definition map_prim_constructor {A B} (f:A -> B) (p : sopn.prim_constructor A) :=
+  match p with
+  | sopn.PrimP x1 x2 => sopn.PrimP x1 (fun ws1 ws2 => f (x2 ws1 ws2))
+  | sopn.PrimM x => sopn.PrimM (fun ws => f (x ws))
+  | sopn.PrimV x => sopn.PrimV (fun ws1 v ws2 => f (x ws1 v ws2))
+  | sopn.PrimSV x => sopn.PrimSV (fun ws1 s v ws2 => f (x ws1 s v ws2))
+  | sopn.PrimX x => sopn.PrimX (fun ws1 ws2 ws3 => f (x ws1 ws2 ws3))
+  | sopn.PrimVV x => sopn.PrimVV (fun ws1 v1 ws2 v2 ws3 => f (x ws1 v1 ws2 v2 ws3))
+  end.
+Definition sopn_prim_string_base (o : seq (string * prim_constructor asm_op)) :=
+  let to_ex ws o := BaseOp (ws, o) in
+  map (fun '(s, p) => (s, sopn_prim_constructor to_ex p)) o.
+Definition sopn_prim_string_extra (o : seq (string * sopn.prim_constructor extra_op)) :=
+  let to_ex o := ExtOp o in
+  map (fun '(s, p) => (s, map_prim_constructor to_ex p)) o.
+
+Definition get_prime_op : seq (string * sopn.prim_constructor extended_op) :=
+  sopn_prim_string_base prim_string ++ sopn_prim_string_extra sopn.prim_string.
 
 Instance eqTC_extended_op : eqTypeC extended_op :=
   { ceqP := extended_op_eq_axiom }.
 
 Global Instance asm_opI : asmOp extended_op :=
-  { sopn.asm_op_instr := get_instr_desc }.
+  { sopn.asm_op_instr := get_instr_desc;
+    sopn.prim_string := get_prime_op }.
 
 End AsmOpI.

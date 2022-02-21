@@ -1,7 +1,6 @@
 open Utils
 open Prog
 open Regalloc
-open X86_stack_alloc
 
 let pp_var = Printer.pp_var ~debug:true
 
@@ -86,10 +85,10 @@ let pp_oracle tbl up fmt saos =
     (pp_list "@;" (pp_slot tbl)) ao_global_alloc
     (pp_list "@;" pp_stack_alloc) fs
 
-let memory_analysis pp_err ~debug pp_opn is_move_op dead_code_fd tbl up =
+let memory_analysis pp_err ~debug pp_opn is_move_op dead_code_fd stackalloc_prog regalloc_prog tbl up =
   if debug then Format.eprintf "START memory analysis@.";
   let p = Conv.prog_of_cuprog tbl up in
-  let gao, sao = Varalloc.alloc_stack_prog p in
+  let gao, sao = Varalloc.alloc_stack_prog is_move_op p in
   
   (* build coq info *)
   let crip = Var0.Var.vname (Conv.cvar_of_var tbl Prog.rip) in
@@ -161,7 +160,7 @@ let memory_analysis pp_err ~debug pp_opn is_move_op dead_code_fd tbl up =
   end;
 
   let sp' = 
-    match Stack_alloc.alloc_prog U64 (Arch_extra.asm_opI X86_extra.x86_extra) false x86_mov_ofs crip crsp gao.gao_data cglobs cget_sao up with
+    match stackalloc_prog crip crsp gao.gao_data cglobs cget_sao up with
     | Utils0.Ok sp -> sp 
     | Utils0.Error e ->
       let e = Conv.error_of_cerror (pp_err tbl) tbl e in
@@ -179,7 +178,7 @@ let memory_analysis pp_err ~debug pp_opn is_move_op dead_code_fd tbl up =
   let deadcode (extra, fd) =
     let (fn, cfd) = Conv.cufdef_of_fdef tbl fd in
     let fd = 
-      match dead_code_fd tokeep fn cfd with
+      match dead_code_fd false tokeep fn cfd with
       | Utils0.Ok cfd -> Conv.fdef_of_cufdef tbl (fn, cfd) 
       | Utils0.Error _ -> assert false in 
     (extra,fd) in
@@ -191,8 +190,8 @@ let memory_analysis pp_err ~debug pp_opn is_move_op dead_code_fd tbl up =
   (* register allocation *)
   let translate_var = Conv.var_of_cvar tbl in
   let has_stack f = f.f_cc = Export && (Hf.find sao f.f_name).sao_modify_rsp in
-  let fds, _extra_free_registers =
-    Regalloc.alloc_prog pp_opn is_move_op translate_var (fun fd _ -> has_stack fd) fds in
+  let fds =
+    regalloc_prog translate_var (fun fd _ -> has_stack fd) fds in
   
   let fix_csao (_, ro, fd) =
     let fn = fd.f_name in
