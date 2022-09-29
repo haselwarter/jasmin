@@ -52,7 +52,53 @@ let pp_var_i fmt { Expr.v_var : Var0.Var.var; v_info : Expr.var_info } =
 
 let pp_instr_info = pp_positive
 
-let pp_instr_r fmt i = F.fprintf fmt "_"
+let pp_lval fmt = function
+  | Expr.Lnone (var_info, _stype) ->
+     F.fprintf fmt "Lnone _"
+  | Lvar (var_i) ->
+     F.fprintf fmt "Lvar _"
+  | Lmem (wsize, var_i, pexpr) ->
+     F.fprintf fmt "Lmem _"
+  | Laset (arr_access, wsize, var_i, pexpr) ->
+     F.fprintf fmt "Laset _"
+  | Lasub (arr_access, wsize, positive, var_i, pexpr) ->
+     F.fprintf fmt "Lasub _"
+
+let pp_asm_op_t fmt asm_op_t =
+  ()
+
+let pp_sopn fmt = function
+  | Sopn.Ocopy (wsize, positive) ->
+     F.fprintf fmt "@[<2>Ocopy@ (%a)@ (%a)@]"
+       pp_wsize wsize pp_positive positive
+  | Onop -> F.fprintf fmt "Onop"
+  | Omulu wsize -> F.fprintf fmt "@[<2>Omulu@ (%a)@]"
+                     pp_wsize wsize
+  | Oaddcarry wsize -> F.fprintf fmt "@[<2>Oaddcarry@ (%a)@]"
+                         pp_wsize wsize
+  | Osubcarry wsize -> F.fprintf fmt "@[<2>Osubcarry@ (%a)@]"
+                         pp_wsize wsize
+  | Oasm asm_op_t -> F.fprintf fmt "@[<2>Oasm@ (%a)@]"
+                       pp_asm_op_t asm_op_t
+
+
+let pp_instr_r fmt = function
+  | Expr.Cassgn (lval, assgn_tag, stype, pexpr) ->
+     F.fprintf fmt "Cassgn@ (%a)@ _@ (%a)@ _"
+       pp_lval lval pp_stype stype
+  | Copn (lvals, assgn_tag, sopn, pexprs) ->
+     F.fprintf fmt "Copn@ _@ _@ (%a)@ _"
+       pp_sopn sopn
+  | Csyscall (lvals, syscall_t, pexprs) ->
+     F.fprintf fmt "_"
+  | Cif (pexpr, asm_op_instrs, asm_op_instrs') ->
+     F.fprintf fmt "_"
+  | Cfor (var_i, range, asm_op_instrs) ->
+     F.fprintf fmt "_"
+  | Cwhile (align, asm_op_instrs, pexpr, asm_op_instrs') ->
+     F.fprintf fmt "_"
+  | Ccall (inline_info, lvals, funname, pexprs) ->
+     F.fprintf fmt "_"
 
 let pp_instr fmt (Expr.MkI (ii, instr_r)) =
   F.fprintf fmt "@[<1>MkI@ (%a)@ (%a)@]"
@@ -68,7 +114,7 @@ let pp_fdef fmt ({ Expr.f_info : Expr.fun_info;
                    f_extra : 'extra_fun_t;
       })
   =
-  F.fprintf fmt "@[<v 1>{| @[<2>f_info@ :=@ %a@]@ ; @[<2>f_tyin :=@ @[<2>[%a]@]@]@ ; @[<2>f_params :=@ @[<2>[%a]@]@]@ ; @[<2>f_body@ :=@ @[<2>[%a]@]@]@ ; @[<2>f_tyout@ :=@ @[<2>[%a]@]@]@ ; @[<2>f_res :=@ @[<2>[%a]@]@]@ ; @[<2>f_extra :=@ @[<2>%a@]@]@ ; |}@]"
+  F.fprintf fmt "@[<v 1>{| @[<2>f_info@ :=@ %a@]@ ; @[<2>f_tyin :=@ @[<2>[%a]@]@]@ ; @[<2>f_params :=@ @[<2>[%a]@]@]@ ; @[<2>f_body@ :=@ @[<2>[ %a ]@]@]@ ; @[<2>f_tyout@ :=@ @[<2>[%a]@]@]@ ; @[<2>f_res :=@ @[<2>[%a]@]@]@ ; @[<2>f_extra :=@ @[<2>%a@]@]@ ; |}@]"
     pp_positive f_info
     (Utils.pp_list ";@ " pp_stype) f_tyin
     (Utils.pp_list ";@ " pp_var_i) f_params
@@ -104,9 +150,10 @@ let pp_preamble fmt () =
   F.fprintf fmt "@.@.@]"
 
 
-let pp_cuprog tbl (fmt : F.formatter) (p : 'asm Expr._uprog) : unit =
+let pp_cuprog tbl pp_asm (fmt : F.formatter) (p : 'asm Expr._uprog) : unit =
   (* pp_list "@ @ " pp_gd fmt (List.rev p.p_globs) ; *)
   ignore pp_gd ;
+  ignore pp_asm ;
   pp_preamble fmt ();
   (* ignore pp_preamble ; *)
   print_newline () ;

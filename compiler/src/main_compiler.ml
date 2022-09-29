@@ -246,7 +246,9 @@ let main () =
 
     if !debug then Printf.eprintf "translated to coq \n%!";
 
-    if !print_coq then Format.printf "%a" (Coq_pp.pp_cuprog tbl) cprog ;
+    if !print_coq then
+      Format.printf "%a"
+        (Coq_pp.pp_cuprog tbl (fun _asm _fmt -> ignore (Ppasm.pp_instr))) cprog ;
 
     let to_exec = Pretyping.Env.Exec.get env in
     if to_exec <> [] then begin
