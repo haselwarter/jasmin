@@ -1,1 +1,1 @@
-val pp_cuprog : 'info Conv.coq_tbl -> ('asm -> Format.formatter -> unit) -> Format.formatter -> 'asm Expr._uprog -> unit
+val pp_cuprog : Conv.coq_tbl -> ('a,'b,'c,'d,'e,'f,'g) Arch_extra.extended_op Sopn.asmOp -> Format.formatter -> ('a,'b,'c,'d,'e,'f,'g) Arch_extra.extended_op Expr._uprog -> unit
