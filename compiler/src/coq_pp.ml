@@ -80,7 +80,7 @@ let pp_arr_access fmt (aa : Warray_.arr_access) =
 
 let pp_op_kind fmt = function
   | Expr.Op_int -> F.fprintf fmt "Op_int"
-  | Op_w wsize -> F.fprintf fmt "@[<2>Op_w@ %a@]" pp_wsize wsize
+  | Op_w wsize -> F.fprintf fmt "(@[<2>Op_w@ %a@])" pp_wsize wsize
 
 let pp_sop1 fmt = function
   | Expr.Oword_of_int wsize ->
@@ -185,8 +185,8 @@ let rec pp_pexpr fmt (pexpr : Expr.pexpr) =
   let f x = F.fprintf fmt x in
   (match pexpr with
    | Expr.Pconst i -> f "(@[<2>Pconst@ (%a)@])" pp_int i
-   | Expr.Pbool b -> f "(@[<2>Pbool@ %b])" b
-   | Expr.Parr_init n -> f "(@[<2>Parr_init@ %a])" pp_positive n
+   | Expr.Pbool b -> f "(@[<2>Pbool@ %b@])" b
+   | Expr.Parr_init n -> f "(@[<2>Parr_init@ %a@])" pp_positive n
    | Expr.Pvar v -> f "(@[<2>Pvar@ %a@])" pp_gvar v
    | Expr.Pget (arr_access, wsize, gvar, pexpr) ->
       f "(@[<2>Pget@ %a@ %a@ %a@ %a@])"
