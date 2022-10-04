@@ -567,7 +567,7 @@ let pp_cuprog tbl (asmOp : 'asm Sopn.asmOp) (fmt : F.formatter) (p : 'asm Expr._
   let pp_fun fmt (fn, fdef) =
     F.fprintf fmt "@[<2>( %a,@ %a )@]" (pp_funname tbl) fn (pp_fdef asmOp) fdef
   in
-  F.fprintf fmt "@[<v 2>Definition ssprove_jasmin_prog : uprog.@.Proof.@.  refine {| p_funcs :=@  [ %a ] ;@.  p_globs := %a ;@.  p_extra := tt |}.@]@ "
+  F.fprintf fmt "@[<v 2>Definition ssprove_jasmin_prog : uprog.@.Proof.@.  refine {| p_funcs :=@  [ %a ] ;@.  p_globs := %a ;@.  p_extra := tt |}.@.Defined.@]@ "
     (Utils.pp_list "@  ; " pp_fun) (List.rev p.p_funcs)
     pp_globs p.p_globs
 
