@@ -510,7 +510,9 @@ let pp_preamble fmt () =
   line "Set Warnings \"notation-overridden,ambiguous-paths\".@." ;
   (* jasmin *)
   line "Require Import List." ;
+  line "Set Warnings \"-notation-overridden\"." ;
   line "From Jasmin Require Import expr." ;
+  line "Set Warnings \"notation-overridden\"." ;
   line "From Jasmin Require Import x86_instr_decl x86_extra." ;
   line "From JasminSSProve Require Import jasmin_translate." ;
   line "From Crypt Require Import Prelude Package.@." ;
