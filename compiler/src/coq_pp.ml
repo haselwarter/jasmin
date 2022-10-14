@@ -1,6 +1,6 @@
 module F = Format
 
-let pp_gd _fmt _globs = failwith "todo"
+let pp_gd fmt _globs = F.fprintf fmt "(* TODO: pp_gd *) _"
 
 let pp_positive fmt n =
   let rec pp_positive_aux fmt = function
@@ -465,8 +465,8 @@ let rec pp_instr_r (asmOp : 'asm Sopn.asmOp) fmt x =
   | Cwhile (align, asm_op_instrs, pexpr, asm_op_instrs') ->
      F.fprintf fmt "@[<2>Cwhile@ %a@ %a@ (%a)@ %a@]"
        pp_align align
-       pp_pexpr pexpr
        pp_instrs asm_op_instrs
+       pp_pexpr pexpr
        pp_instrs asm_op_instrs'
   | Ccall (inline_info, lvals, funname, pexprs) ->
      F.fprintf fmt "@[<2>Ccall@ %s@ %a@ (%a)@ %a@]"
@@ -530,18 +530,18 @@ let pp_preamble fmt () =
   (* done *)
   F.fprintf fmt "@.@.@]"
 
-let pp_word _fmt _word =
-  failwith "TODO"
+let pp_word fmt _word =
+  F.fprintf fmt "(* TODO: pp_gd *) _"
 
-let pp_array _fmt _array =
-  failwith "TODO"
+let pp_array fmt _array =
+  F.fprintf fmt "(* TODO: pp_gd *) _"
 
 let pp_glob_value fmt = function
   | Global.Gword (wsize, word) ->
-     F.fprintf fmt "(@[<2>Gword@ %a@ %a@])"
+     F.fprintf fmt "(@[<2>@Gword@ %a@ %a@])"
        pp_wsize wsize pp_word word
   | Garr (p, array) ->
-     F.fprintf fmt "(@[<2>Garr@ %a@ %a@])"
+     F.fprintf fmt "(@[<2>@Garr@ (%a)@ %a@])"
        pp_positive p pp_array array
 
 let pp_glob_decl fmt (var, gv) =
