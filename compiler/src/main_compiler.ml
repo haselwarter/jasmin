@@ -260,6 +260,9 @@ let main () =
 
     if !debug then Printf.eprintf "translated to coq \n%!";
 
+    if !print_coq then
+      Format.printf "%a" (Coq_pp.pp_cuprog tbl Arch.asmOp) cprog ;
+
     let to_exec = Pretyping.Env.Exec.get env in
     if to_exec <> [] then begin
         let exec { L.pl_loc = loc ; L.pl_desc = (f, m) } =
