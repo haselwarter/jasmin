@@ -132,6 +132,8 @@ let pp_sop2 fmt sop2 =
    | Olsr  wsize -> f "@[<2>Olsr@ %a@]" pp_wsize wsize
    | Olsl  op_kind -> f "@[<2>Olsl@ %a@]" pp_op_kind op_kind
    | Oasr  op_kind -> f "@[<2>Oasr@ %a@]" pp_op_kind op_kind
+   | Oror  wsize -> f "@[<2>Oror@ %a@]" pp_wsize wsize
+   | Orol  wsize -> f "@[<2>Orol@ %a@]" pp_wsize wsize
 
    | Oeq op_kind -> f "@[<2>Oeq@ %a@]" pp_op_kind op_kind
    | Oneq op_kind -> f "@[<2>Oneq@ %a@]" pp_op_kind op_kind
@@ -256,7 +258,7 @@ let pp_sopn (asmOp : 'asm Sopn.asmOp) fmt =
                          pp_wsize wsize
   | (Oasm asm_op_t) as opn ->
      F.fprintf fmt "@[<2>Oasm@ (* %a *)@ ("
-       (Printer.pp_opn asmOp) opn ;
+       (PrintCommon.pp_opn asmOp) opn ;
      begin match asm_op_t with
      | Arch_extra.BaseOp (wsize_opt, a) ->
         F.fprintf fmt "@[<2>BaseOp@ (%a,@ " pp_wsize_opt wsize_opt ;
@@ -310,6 +312,7 @@ let pp_sopn (asmOp : 'asm Sopn.asmOp) fmt =
          | POPCNT wsize -> F.fprintf fmt "(@[<2>POPCNT@ %a@])" pp_wsize wsize
          | PEXT wsize -> F.fprintf fmt "(@[<2>PEXT@ %a@])" pp_wsize wsize
          | MOVX wsize -> F.fprintf fmt "(@[<2>MOVX@ %a@])" pp_wsize wsize
+         | MOVV wsize -> F.fprintf fmt "(@[<2>MOVV@ %a@])" pp_wsize wsize
          | MOVD wsize -> F.fprintf fmt "(@[<2>MOVD@ %a@])" pp_wsize wsize
          | VMOV wsize -> F.fprintf fmt "(@[<2>VMOV@ %a@])" pp_wsize wsize
          | VMOVDQU wsize -> F.fprintf fmt "(@[<2>VMOVDQU@ %a@])" pp_wsize wsize
@@ -325,7 +328,9 @@ let pp_sopn (asmOp : 'asm Sopn.asmOp) fmt =
          | VPXOR wsize -> F.fprintf fmt "(@[<2>VPXOR@ %a@])" pp_wsize wsize
          | VPADD (ve, ws) -> F.fprintf fmt "(@[<2>VPADD@ %a@ %a@])" pp_velem ve pp_wsize ws
          | VPSUB (ve, ws) -> F.fprintf fmt "(@[<2>VPSUB@ %a@ %a@])" pp_velem ve pp_wsize ws
+         | VPAVG (ve, ws) -> F.fprintf fmt "(@[<2>VPAVG@ %a@ %a@])" pp_velem ve pp_wsize ws
          | VPMULL (ve, ws) -> F.fprintf fmt "(@[<2>VPMULL@ %a@ %a@])" pp_velem ve pp_wsize ws
+         | VPMUL wsize -> F.fprintf fmt "(@[<2>VPMUL@ %a@])" pp_wsize wsize
          | VPMULH (ve, ws) -> F.fprintf fmt "(@[<2>VPMULH@ %a@ %a@])" pp_velem ve pp_wsize ws
          | VPMULHU (ve, ws) -> F.fprintf fmt "(@[<2>VPMULHU@ %a@ %a@])" pp_velem ve pp_wsize ws
          | VPMULHRS (ve, ws) -> F.fprintf fmt "(@[<2>VPMULHRS@ %a@ %a@])" pp_velem ve pp_wsize ws
@@ -349,8 +354,8 @@ let pp_sopn (asmOp : 'asm Sopn.asmOp) fmt =
          | VPACKSS (ve, ws) -> F.fprintf fmt "(@[<2>VPACKSS@ %a@ %a@])" pp_velem ve pp_wsize ws
          | VSHUFPS wsize -> F.fprintf fmt "(@[<2>VSHUFPS@ %a@])" pp_wsize wsize
          | VPBROADCAST (ve, ws) -> F.fprintf fmt "(@[<2>VPBROADCAST@ %a@ %a@])" pp_velem ve pp_wsize ws
-         | VMOVSHDUP (ve, ws) -> F.fprintf fmt "(@[<2>VMOVSHDUP@ %a@ %a@])" pp_velem ve pp_wsize ws
-         | VMOVSLDUP (ve, ws) -> F.fprintf fmt "(@[<2>VMOVSLDUP@ %a@ %a@])" pp_velem ve pp_wsize ws
+         | VMOVSHDUP wsize -> F.fprintf fmt "(@[<2>VMOVSHDUP@ %a@])" pp_wsize wsize
+         | VMOVSLDUP wsize -> F.fprintf fmt "(@[<2>VMOVSLDUP@ %a@])" pp_wsize wsize
          | VPALIGNR wsize -> F.fprintf fmt "(@[<2>VPALIGNR@ %a@])" pp_wsize wsize
          | VBROADCASTI128 -> F.fprintf fmt "VBROADCASTI128"
          | VPUNPCKH (ve, ws) -> F.fprintf fmt "(@[<2>VPUNPCKH@ %a@ %a@])" pp_velem ve pp_wsize ws
@@ -480,10 +485,9 @@ and pp_instr (asmOp : 'asm Sopn.asmOp) fmt (Expr.MkI (ii, instr_r)) =
   F.fprintf fmt "@[<1>MkI@ %a@ (%a)@]"
     pp_instr_info ii (pp_instr_r asmOp) instr_r
 
-
+(* we don't need the fun_info, so we print a dummy *)
 let pp_fdef (asmOp : 'asm Sopn.asmOp)
-      fmt ({ Expr.f_info : Expr.fun_info;
-             f_tyin : Type.stype list;
+      fmt ({ Expr.f_tyin : Type.stype list;
              f_params : Expr.var_i list;
              f_body : 'asm_op Expr.instr list;
              f_tyout : Type.stype list;
@@ -491,8 +495,8 @@ let pp_fdef (asmOp : 'asm Sopn.asmOp)
              f_extra : 'extra_fun_t;
       })
   =
-  F.fprintf fmt "@[<v 1>{| @[<2>f_info@ :=@ %a@]@ ; @[<2>f_tyin :=@ @[<2>[%a]@]@]@ ; @[<2>f_params :=@ @[<2>[%a]@]@]@ ; @[<2>f_body@ :=@ @[<2>[ %a ]@]@]@ ; @[<2>f_tyout@ :=@ @[<2>[%a]@]@]@ ; @[<2>f_res :=@ @[<2>[%a]@]@]@ ; @[<2>f_extra :=@ @[<2>%a@]@]@ ; |}@]"
-    pp_positive f_info
+  F.fprintf fmt "@[<v 1>{| @[<2>f_info@ :=@ %s@]@ ; @[<2>f_tyin :=@ @[<2>[%a]@]@]@ ; @[<2>f_params :=@ @[<2>[%a]@]@]@ ; @[<2>f_body@ :=@ @[<2>[ %a ]@]@]@ ; @[<2>f_tyout@ :=@ @[<2>[%a]@]@]@ ; @[<2>f_res :=@ @[<2>[%a]@]@]@ ; @[<2>f_extra :=@ @[<2>%a@]@]@ ; |}@]"
+    "FunInfo.witness"
     (Utils.pp_list ";@ " pp_stype) f_tyin
     (Utils.pp_list ";@ " pp_var_i) f_params
     (Utils.pp_list ";@ " (pp_instr asmOp)) f_body
@@ -567,11 +571,19 @@ let pp_cuprog tbl (asmOp : 'asm Sopn.asmOp) (fmt : F.formatter) (p : 'asm Expr._
   (* Definition fun_decl := (funname * fundef)%type. *)
 
   let pp_fun fmt (fn, fdef) =
-    F.fprintf fmt "@[<2>( %a,@ %a )@]" (pp_funname tbl) fn (pp_fdef asmOp) fdef
+    Format.fprintf fmt "@[<2>( %a,@ %a )@]" (pp_funname tbl) fn (pp_fdef asmOp) fdef
   in
-  F.fprintf fmt "@[<v 2>Definition ssprove_jasmin_prog : uprog.@.Proof.@.  refine {| p_funcs :=@  [ %a ] ;@.  p_globs := %a ;@.  p_extra := tt |}.@.Defined.@]@ "
-    (Utils.pp_list "@  ; " pp_fun) (List.rev p.p_funcs)
-    pp_globs p.p_globs
+  F.fprintf fmt "@[Definition ssprove_jasmin_prog : uprog.@.Proof.@.  refine {| p_funcs :=@  [ %a ] ;@.  p_globs := %a ;@.  p_extra := tt |}.@.Defined.@]@ "
+    (Utils.pp_list "@  ; " pp_fun) p.p_funcs
+    pp_globs p.p_globs ;
+
+  print_newline () ;
+
+  let pp_fun fmt (fn, _) =
+    let fn' = Conv.fun_of_cfun tbl fn in
+    Format.fprintf fmt "@[<1>Notation %s := ( %a ).@]" (String.uppercase_ascii fn'.fn_name) pp_positive fn
+  in
+  (Utils.pp_list "@." pp_fun) fmt p.p_funcs
 
   (* List.map (gd_of_cgd tbl) p.C.p_globs, *)
   (* List.map (fdef_of_cufdef tbl) p.C.p_funcs *)
