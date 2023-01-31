@@ -1,6 +1,6 @@
 From mathcomp Require Import all_ssreflect all_algebra.
 From mathcomp.word Require Import ssrZ.
-Require Import ZArith utils strings low_memory word waes sem_type global oseq.
+Require Import ZArith utils strings word waes sem_type global oseq.
 Import Utf8 Relation_Operators.
 
 Set   Implicit Arguments.
