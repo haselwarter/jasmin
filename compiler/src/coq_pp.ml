@@ -39,25 +39,17 @@ let pp_vname fmt (t : Obj.t) =
   ignore (List.map (F.pp_print_char fmt) t) ;
   F.fprintf fmt "\""
 
-(* type var = { vtype : stype; vname : Equality.sort } *)
 let pp_var fmt { Var0.Var.vtype : Type.stype; vname : Eqtype.Equality.sort } =
   F.fprintf fmt "@[<v 1>{| @[<2>vtype@ :=@ %a@]@ ; @[<2>vname@ :=@ %a @] |}@]" pp_stype vtype pp_vname vname
 
-(* type var_info = Location.t *)
-(* TODO: could print the actual location, shouldn't matter though. *)
 let pp_var_info fmt _vi =
   F.fprintf fmt "dummy_var_info"
 
-(* Record var_i := VarI { *)
-(*   v_var :> var; *)
-(*   v_info : var_info *)
-(* }. *)
 let pp_var_i fmt { Expr.v_var : Var0.Var.var; v_info : Expr.var_info } =
   F.fprintf fmt
     "@[<v 1>{| @[<2>v_var@ :=@ %a@]@ ; @[<2>v_info@ :=@ %a@] |}@]"
     pp_var v_var pp_var_info v_info
 
-(* TODO could print the actual info *)
 let pp_instr_info fmt (_loc, _annot) =
   F.fprintf fmt "InstrInfo.witness"
 
@@ -236,9 +228,6 @@ let pp_lval fmt = function
        pp_positive positive
        pp_var_i var_i pp_pexpr pexpr
 
-(* let pp_asm_op_t fmt asm_op_t = *)
-(*   F.fprintf fmt "_" *)
-
 let pp_wsize_opt fmt = function
   | None -> F.fprintf fmt "None"
   | Some wsize -> F.fprintf fmt "(@[<2>Some@ %a@])" pp_wsize wsize
@@ -405,12 +394,6 @@ let pp_sopn (asmOp : 'asm Sopn.asmOp) fmt =
      end ;
      F.fprintf fmt ")@]"
 
-     (* F.fprintf fmt "@[<2>Oasm@ (\* %a *\)@ (%a)@]" *)
-     (*   (Printer.pp_opn asmOp) opn *)
-     (*   pp_asm_op_t asm_op_t *)
-     (* Arch_extra.sopn_prim_string_base ; *)
-     (* Sopn.sopn_prim_constructor asmOp *)
-
 let pp_assgn_tag fmt (assgn_tag : Expr.assgn_tag) =
   F.fprintf fmt "%s"
     (match assgn_tag with
@@ -485,7 +468,6 @@ and pp_instr (asmOp : 'asm Sopn.asmOp) fmt (Expr.MkI (ii, instr_r)) =
   F.fprintf fmt "@[<1>MkI@ %a@ (%a)@]"
     pp_instr_info ii (pp_instr_r asmOp) instr_r
 
-(* we don't need the fun_info, so we print a dummy *)
 let pp_fdef (asmOp : 'asm Sopn.asmOp)
       fmt ({ Expr.f_tyin : Type.stype list;
              f_params : Expr.var_i list;
@@ -523,15 +505,6 @@ let pp_preamble fmt () =
   (* notations *)
   line "Import ListNotations." ;
   line "Local Open Scope string.@." ;
-  (* compiler parameters *)
-  (* TODO: which of these are needed? *)
-  (* line "Context `{asmop : asmOp}." ; *)
-  (* line "Context {T} {pT : progT T}." ; *)
-  (* line "Context {pd : PointerData}." ; *)
-  (* line "Context (P : uprog)." ; *)
-  (* line "Context (f : funname)." ; *)
-  (*  *)
-  (* done *)
   F.fprintf fmt "@.@.@]"
 
 let pp_word fmt _word =
@@ -557,18 +530,9 @@ let pp_globs fmt globs =
     (Utils.pp_list "@  ; " pp_glob_decl) globs
 
 let pp_cuprog tbl (asmOp : 'asm Sopn.asmOp) (fmt : F.formatter) (p : 'asm Expr._uprog) : unit =
-  (* pp_list "@ @ " pp_gd fmt (List.rev p.p_globs) ; *)
   ignore pp_gd ;
   pp_preamble fmt ();
-  (* ignore pp_preamble ; *)
   print_newline () ;
-
-  (* Record _prog (extra_fun_t: Type) (extra_prog_t: Type):= { *)
-  (*   p_funcs : seq (_fun_decl extra_fun_t); *)
-  (*   p_globs : glob_decls; *)
-  (*   p_extra : extra_prog_t; *)
-  (* }. *)
-  (* Definition fun_decl := (funname * fundef)%type. *)
 
   let pp_fun fmt (fn, fdef) =
     Format.fprintf fmt "@[<2>( %a,@ %a )@]" (pp_funname tbl) fn (pp_fdef asmOp) fdef
@@ -584,6 +548,3 @@ let pp_cuprog tbl (asmOp : 'asm Sopn.asmOp) (fmt : F.formatter) (p : 'asm Expr._
     Format.fprintf fmt "@[<1>Notation %s := ( %a ).@]" (String.uppercase_ascii fn'.fn_name) pp_positive fn
   in
   (Utils.pp_list "@." pp_fun) fmt p.p_funcs
-
-  (* List.map (gd_of_cgd tbl) p.C.p_globs, *)
-  (* List.map (fdef_of_cufdef tbl) p.C.p_funcs *)

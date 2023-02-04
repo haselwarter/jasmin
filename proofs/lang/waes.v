@@ -184,7 +184,6 @@ Definition InvShiftRows (s : u128) :=
      s20, s21, s22, s23,
      s30, s31, s32, s33).
 
-(* TODO: Implement these *)
 Parameter MixColumns : u128 -> u128.
 Parameter InvMixColumns : u128 -> u128.
 
